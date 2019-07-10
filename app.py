@@ -1,13 +1,21 @@
-from flask import Flask, render_template, redirect, request
-from food_database import Foods
+from flask import *
+from food_database import Foods, Users
 from bson.objectid import ObjectId
 
 app = Flask (__name__)
 
+app.config["SECRET_KEY"] = "hjhjjghghgjgjhg"
+
 @app.route("/foods")
 def home():
-    all_foods = Foods.find()
-    return render_template("all_food.html", ALL_FOODS=all_foods)
+    if "logged" in session:
+        if session["logged"]:
+            all_foods = Foods.find()
+            return render_template("all_food.html", ALL_FOODS=all_foods)
+        else:
+            return redirect("/login")
+    else:
+        return redirect("/login")
 
 @app.route("/foods/<id>")
 def food_detail(id):
@@ -60,5 +68,70 @@ def edit_food(id):
 
         Foods.update_one(edited_food, new_value)
         return redirect('/foods')
+
+@app.route('/login', methods=["GET", "POST"])
+def login():
+    if "logged" in session:
+        if session["logged"]:
+            return redirect("/foods")
+        else:
+            if request.method == "GET":
+                return render_template("login.html")
+            elif request.method == "POST":
+                form = request.form
+                username = form["username_login"]
+                password = form["password_login"]
+                user = Users.find_one({"username": username})
+                if user is None:
+                    session["logged"] = False
+                    return redirect('/login')
+                else:
+                    if password == user["password"]:
+                        session["logged"] = True
+                        return redirect("/foods")
+                    else:
+                        return redirect('/login')
+    else:
+        session["logged"] = False
+        return redirect('/login')
+
+@app.route('/register', methods=["GET", "POST"])
+def register():
+    if 'logged' in session:
+        if session['logged']:
+            return redirect('/foods')
+        else:
+            if request.method == "GET":
+                return render_template("register.html")
+            elif request.method == "POST":
+                form = request.form
+                username = form['register_username']
+                password = form['register_password']
+                new_user = {
+                    "username": username,
+                    "password": password
+                }
+                all_users = Users.find()
+                # for user in all_users:
+                #     if user["username"] == username:
+                #         return redirect('/register')
+                #     else:
+                #         Users.insert_one(new_user)
+                #         return redirect('/login')
+
+                exists_user = Users.find_one({"username": username})
+                if exists_user is not None:
+                    return redirect('/register')
+                else:
+                    Users.insert_one(new_user)
+                    return redirect('/login')
+    else:
+        return redirect('/login')
+
+@app.route('/logout')
+def logout():
+    session["logged"] = False
+    return redirect("/login")
+
 if __name__ == "__main__":
     app.run(debug=True)
